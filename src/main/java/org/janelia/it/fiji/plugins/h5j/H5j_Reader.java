@@ -9,12 +9,11 @@ package org.janelia.it.fiji.plugins.h5j;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.io.OpenDialog;
 import ij.plugin.PlugIn;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.io.File;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileFilter;
 import org.janelia.it.h5j.fiji.adapter.FijiAdapter;
 
 /**
@@ -31,8 +30,6 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
     
     private boolean asImage = false;
     private boolean asHyperstack = HYPERSTACK;
-    
-    private JFileChooser fileChooser;
 
     @Override
     public void run(String string) {
@@ -135,28 +132,13 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
     private File showFileChooser() throws HeadlessException {
         // Will replace the file with a user input.
         try {
-            if (fileChooser == null) {
-                fileChooser = new JFileChooser();
-                fileChooser.addChoosableFileFilter(new H5jFileFilter());
-            }
-            File rtnVal;
-            final int dialogResult = fileChooser.showOpenDialog(null);
-            switch (dialogResult) {
-                case JFileChooser.CANCEL_OPTION:
-                    rtnVal = null;
-                    break;
-                case JFileChooser.ERROR_OPTION:
-                    rtnVal = null;
-                    IJ.error("Failed to open H5J File.");
-                    break;
-                case JFileChooser.APPROVE_OPTION:
-                    this.setAsHyperStack(false);
-                    rtnVal = fileChooser.getSelectedFile();
-                    break;
-                default:
-                    rtnVal = null;
-                    break;
-            }
+            OpenDialog od = new OpenDialog("H5J Reader");
+            String dir = od.getDirectory();
+    		String filename = od.getFileName();
+    		if (filename == null)
+    			return null;
+    		String path = dir + filename;
+            File rtnVal = new File(path);
             return rtnVal;
         } catch (Exception ex) {
             IJ.error("Exception encountered: " + ex.getMessage());
@@ -164,19 +146,5 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
             return null;
         }
     }
-
-    private static class H5jFileFilter extends FileFilter {
-
-        @Override
-        public boolean accept(File path) {
-            return path.isFile()
-                    && path.getName().endsWith(EXTENSION);
-        }
-
-        @Override
-        public String getDescription() {
-            return "Howard Hughes Medical Institute/Janelia Research Campus' H.265-compressed HDF5 Files";
-        }
-
-    }
+    
 }
