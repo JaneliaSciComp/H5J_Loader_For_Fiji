@@ -20,15 +20,10 @@ public class Frame {
     public AVFrame image;
     public Object opaque;
     public AVFrame picture, picture_rgb;
-    public BytePointer buffer_rgb;
     public ArrayList<byte[]> imageBytes = new ArrayList<byte[]>();
 
     public void release() throws Exception {
         // Free the RGB image
-        if (buffer_rgb != null) {
-            av_free(buffer_rgb);
-            buffer_rgb = null;
-        }
         if (picture_rgb != null) {
             av_free(picture_rgb);
             picture_rgb = null;
