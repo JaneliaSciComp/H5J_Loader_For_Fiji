@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Howard Hughes Medical Institute.
+ * Copyright 2018 Howard Hughes Medical Institute.
  * All rights reserved.
  * Use is subject to Janelia Farm Research Campus Software Copyright 1.1
  * license terms ( http://license.janelia.org/license/jfrc_copyright_1_1.html ).
@@ -14,13 +14,20 @@ import ij.plugin.PlugIn;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.io.File;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
+
 import org.janelia.it.h5j.fiji.adapter.FijiAdapter;
 
 /**
  * Reader for HHMI HDF 5 reader.  Consumes H.265-compressed data.
  *
- * @author fosterl
+ * @author takashi
  */
+
+
+
 public class H5j_Reader extends ImagePlus implements PlugIn {
     
     private static final String MESSAGE_PREFIX = "HHMI_H5J_Reader: ";
@@ -34,6 +41,24 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
     @Override
     public void run(String string) {
         // Do nothing, if this is a headless environment.
+    	/*
+    	try {
+    		String ffmpeg_dir = IJ.getDirectory("startup") + "ffmpeg/";
+    		URLClassLoader cl = (URLClassLoader) ClassLoader.getSystemClassLoader();
+        	Class<?> ccl = URLClassLoader.class;
+        	Method methodAddUrl = ccl.getDeclaredMethod("addURL", URL.class);
+        	methodAddUrl.setAccessible(true);
+        	methodAddUrl.invoke(cl, new File(ffmpeg_dir+"javacpp-1.4.1").toURI().toURL());
+        	methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2-macosx-x86_64.jar").toURI().toURL());
+        	methodAddUrl.invoke(cl, new File(ffmpeg_dir+"ffmpeg-4.0-1.4.2.jar").toURI().toURL());
+        	URL[] urls = cl.getURLs();
+        	for (URL u : urls) {
+        		System.out.println(u.toString());
+        	}
+    	} catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    	*/
         if (GraphicsEnvironment.isHeadless()) {
             IJ.showMessage(MESSAGE_PREFIX + "this plugin will only display a graphical file.  Using it in headless mode is meaningless.");
             return;
