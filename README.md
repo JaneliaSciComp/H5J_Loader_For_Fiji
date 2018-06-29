@@ -6,4 +6,10 @@ within an HDF5 container.
 
 H5J Reader Plugin was created at HHMI Janelia Research Campus.
 
+
+Precompiled Binaries
+========
+https://github.com/JaneliaSciComp/H5J_Loader_For_Fiji/releases
+
+
 ![Janelia Logo](hhmi_janelia_transparentbkgrnd.png)
