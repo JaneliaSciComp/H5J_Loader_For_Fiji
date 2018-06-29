@@ -485,7 +485,7 @@ public class FFMpegLoader
                      } else
                      	return null;
                  }
-       	        System.out.println("f:  "+_frame_count+"   pkt:  "+pkt.size());
+       	        //System.out.println("f:  "+_frame_count+"   pkt:  "+pkt.size());
              	if (pkt.stream_index() == _video_stream.index()) {
              		if (avcodec_send_packet(_video_codec, pkt) < 0)
              			throw new Exception("avcodec_send_packet failed");
@@ -514,7 +514,7 @@ public class FFMpegLoader
                 }
             }
         } else {
-        	System.out.println("f:  "+_frame_count+"   flush");
+        	//System.out.println("f:  "+_frame_count+"   flush");
         	allocateFrame(frame);
      	    ret = avcodec_receive_frame(_video_codec, picture);
      	    _frame_count++;
