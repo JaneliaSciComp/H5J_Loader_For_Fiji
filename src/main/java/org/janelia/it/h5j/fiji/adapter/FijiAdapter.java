@@ -92,7 +92,7 @@ public class FijiAdapter {
 		double[] spc = null;
 		String unit = "";
 		for (String channelName : loader.channelNames()) {
-			IJ.log(channelName);
+			//IJ.log(channelName);
             if (!Interpreter.isBatchMode()) {
                 IJ.showProgress(channelNum, channelCount);
             }
@@ -106,8 +106,8 @@ public class FijiAdapter {
 				}
 
 				bytesPerPixel = h5jImageStack.getBytesPerPixel();  // Adjusting
-				IJ.log("bytesPerPixel: "+bytesPerPixel);
-				IJ.log("channelCount: "+channelCount);
+				//IJ.log("bytesPerPixel: "+bytesPerPixel);
+				//IJ.log("channelCount: "+channelCount);
                 // Assume exactly 1, if the value is not given.
                 if (bytesPerPixel == 0) {
 					if (!Interpreter.isBatchMode()  &&  LOG_OK) {
