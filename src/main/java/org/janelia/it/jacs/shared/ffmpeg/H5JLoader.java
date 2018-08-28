@@ -14,9 +14,7 @@ import java.util.ListIterator;
 
 public class H5JLoader
 {
-	private static final String SPC_X_ATTRIB = "spcx";
-	private static final String SPC_Y_ATTRIB = "spcy";
-	private static final String SPC_Z_ATTRIB = "spcz";
+	private static final String VX_SIZE_ATTRIB = "voxel_size";
 	private static final String UNIT_ATTRIB = "unit";
     private static final String PAD_RIGHT_ATTRIB = "pad_right";
     private static final String PAD_BOTTOM_ATTRIB = "pad_bottom";
@@ -104,26 +102,17 @@ public class H5JLoader
             image.setPaddingRight(-1);
         }
         
-        double spcx = 1.0;
-        double spcy = 1.0;
-        double spcz = 1.0;
-        if (ihdf5reader.object().hasAttribute(CHANNELS_QUERY_PATH, SPC_X_ATTRIB)) {
+        double[] vxsize = null;
+        if (ihdf5reader.object().hasAttribute("/", VX_SIZE_ATTRIB)) {
             IHDF5DoubleReader ihdf5DoubleReader = ihdf5reader.float64();
-            spcx = ihdf5DoubleReader.getAttr(CHANNELS_QUERY_PATH, SPC_X_ATTRIB);
+            vxsize = ihdf5DoubleReader.getArrayAttr("/", VX_SIZE_ATTRIB);
         }
-        if (ihdf5reader.object().hasAttribute(CHANNELS_QUERY_PATH, SPC_Y_ATTRIB)) {
-            IHDF5DoubleReader ihdf5DoubleReader = ihdf5reader.float64();
-            spcy = ihdf5DoubleReader.getAttr(CHANNELS_QUERY_PATH, SPC_Y_ATTRIB);
-        }
-        if (ihdf5reader.object().hasAttribute(CHANNELS_QUERY_PATH, SPC_Z_ATTRIB)) {
-            IHDF5DoubleReader ihdf5DoubleReader = ihdf5reader.float64();
-            spcz = ihdf5DoubleReader.getAttr(CHANNELS_QUERY_PATH, SPC_Z_ATTRIB);
-        }
-        image.setSpacings(spcx, spcy, spcz);
+        if (vxsize != null && vxsize.length == 3)
+        	image.setSpacings(vxsize[0], vxsize[1], vxsize[2]);
         
-        if (ihdf5reader.object().hasAttribute(CHANNELS_QUERY_PATH, UNIT_ATTRIB)) {
+        if (ihdf5reader.object().hasAttribute("/", UNIT_ATTRIB)) {
             IHDF5StringReader ihdf5StringReader = ihdf5reader.string();
-            final String unit = ihdf5StringReader.getAttr(CHANNELS_QUERY_PATH, UNIT_ATTRIB);
+            final String unit = ihdf5StringReader.getAttr("/", UNIT_ATTRIB);
             image.setUnit(unit);
         }
     }
