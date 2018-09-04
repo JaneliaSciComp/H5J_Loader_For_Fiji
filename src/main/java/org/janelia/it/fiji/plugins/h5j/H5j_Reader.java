@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.awt.Color;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import ch.systemsx.cisd.hdf5.*;
 
@@ -152,23 +153,41 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
         		ost.write(data);
         		ost.close();
 
-        		//get bit depth
+        		//get bit depth and frame count
         		if (c == 0) { 
             		String[] listCommands = {
 						IJ.getDirectory("plugins")+"/ffprobe",
 						"-v", "error",
 						"-select_streams", "v",
-						"-of", "default=noprint_wrappers=1:nokey=1",
-						"-show_entries", "stream=pix_fmt",
+						"-of", "default=noprint_wrappers=1",
+						"-show_entries", "stream=pix_fmt,nb_frames",
 						vpath
 					};
 					FFMPEGThread ffprobe = new FFMPEGThread(listCommands);
         			ffprobe.start();
         			ffprobe.join();
-        			if (ffprobe.getStdOut().contains("12le") || ffprobe.getStdOut().contains("12be"))
-					bdepth = 16;
-
-					//IJ.log(ffprobe.getStdOut());
+        			String[] lines = ffprobe.getStdOut().split(System.getProperty("line.separator"));
+        			for (String l : lines) {
+        				if (l.contains("pix_fmt")) {
+        					if (l.contains("12le") || l.contains("12be"))
+        						bdepth = 16;
+        				}
+        				else if (l.contains("nb_frames")) {
+        					String[] elems = l.split("=");
+        					if (elems.length == 2)
+        						slicenum = Integer.parseInt(elems[1]);
+        				}
+        					
+        			}
+        			//IJ.log(ffprobe.getStdOut());
+        		}
+        		
+        		if (slicenum <= 0) return false;
+        		
+        		for (int i = 1; i < slicenum; i++) {
+                	String[] command = new String[] {"mkfifo", tdir + String.format("z%05d", i) + ".tiff"};
+                	Process process = Runtime.getRuntime().exec(command);
+            	    process.waitFor();
         		}
 
 				String[] listCommands = {
@@ -180,45 +199,18 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
 					imageseq_path
 				};
 				FFMPEGThread ffmpeg = new FFMPEGThread(listCommands);
+				LoaderThread loader = new LoaderThread(tdir, width, height, paddingRight, paddingBottom, bdepth);
         		ffmpeg.start();
+        		loader.start();
         		ffmpeg.join();
+        		loader.join();
 
-				int inum = 1;
-				String path = tdir + String.format("z%05d", inum) + ".tiff";
-				File tif = new File(path);
-				BufferedInputStream ist = null;
-				//IJ.log(path);
-				while (tif.exists() && !tif.isDirectory()) {
-					TiffDecoder tfd = new TiffDecoder(tdir, String.format("z%05d", inum) + ".tiff");
-					if (tfd == null) break;
-					FileInfo[] fi_list = tfd.getTiffInfo();
-					if (fi_list == null) break;
-
-					byte [] impxs = new byte[(width+paddingRight)*(height+paddingBottom)*(bdepth/8)];
-					ist = new BufferedInputStream(new FileInputStream(path));
-					ist.skip(fi_list[0].getOffset());
-					ist.read(impxs);
-
-					ImageProcessor ip = null;
-					if (bdepth == 8)
-						ip = (ImageProcessor)( new ByteProcessor(fi_list[0].width, fi_list[0].height, impxs) );
-					else {
-						short [] impxs_s = new short[(width+paddingRight)*(height+paddingBottom)];
-						ByteBuffer.wrap(impxs).order(fi_list[0].intelByteOrder?ByteOrder.LITTLE_ENDIAN:ByteOrder.BIG_ENDIAN).asShortBuffer().get(impxs_s);
-						ip = (ImageProcessor)( new ShortProcessor(fi_list[0].width, fi_list[0].height, impxs_s, null) );
-					}
-					
-					if (paddingBottom > 0 || paddingRight > 0) {
-						ip.setRoi(0, 0, width, height);
-						slices.add(ip.crop());
-					} else
-						slices.add(ip);
-					path = tdir + String.format("z%05d", ++inum) + ".tiff";
-					tif = new File(path);
-				}
+        		ArrayList<ImageProcessor> chslices = loader.getSlices();
 				
-				if (slicenum <= 0) slicenum = inum-1;
-				else if (slicenum != inum-1) break;
+				if (slicenum <= 0) slicenum = chslices.size();
+				else if (slicenum != chslices.size()) break;
+				
+				slices.addAll(loader.getSlices());
 
 				//IJ.log("slicenum: "+slicenum);
         		
@@ -302,5 +294,75 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
         }
         public String getStdOut() { return stdout_sb.toString(); }
         public String getStdErr() { return stderr_sb.toString(); }
+    }
+    
+    class LoaderThread extends Thread{
+        String tdir;
+        int width;
+        int height;
+        int paddingRight;
+        int paddingBottom;
+        int bdepth;
+        ArrayList<ImageProcessor> slices = new ArrayList<ImageProcessor>();
+        
+        LoaderThread(String dir, int w, int h, int paddingR, int paddingB, int bd){        
+            this.tdir = dir;
+            this.width = w;
+            this.height = h;
+            this.paddingRight = paddingR;
+            this.paddingBottom = paddingB;
+            this.bdepth = bd;
+        }
+        
+        public void run(){      
+			try{          
+				int inum = 1;
+				String path = tdir + String.format("z%05d", inum) + ".tiff";
+				File tif = new File(path);
+				BufferedInputStream ist = null;
+				//IJ.log(path);
+				while (tif.exists() && !tif.isDirectory()) {
+					BufferedInputStream bfin = new BufferedInputStream(new FileInputStream(path));
+					byte[] b = IOUtils.toByteArray(bfin);
+					bfin.close();
+					Files.deleteIfExists(Paths.get(path));
+					ByteArrayInputStream bin = new ByteArrayInputStream(b);
+					TiffDecoder tfd = new TiffDecoder(bin, String.format("z%05d", inum) + ".tiff");
+					if (tfd == null) break;
+					FileInfo[] fi_list = tfd.getTiffInfo();
+					if (fi_list == null) break;
+
+					byte [] impxs = new byte[(width+paddingRight)*(height+paddingBottom)*(bdepth/8)];
+					bin.reset();
+					bin.skip(fi_list[0].getOffset());
+					bin.read(impxs);
+					bin.close();
+
+					ImageProcessor ip = null;
+					if (bdepth == 8)
+						ip = (ImageProcessor)( new ByteProcessor(fi_list[0].width, fi_list[0].height, impxs) );
+					else {
+						short [] impxs_s = new short[(width+paddingRight)*(height+paddingBottom)];
+						ByteBuffer.wrap(impxs).order(fi_list[0].intelByteOrder?ByteOrder.LITTLE_ENDIAN:ByteOrder.BIG_ENDIAN).asShortBuffer().get(impxs_s);
+						ip = (ImageProcessor)( new ShortProcessor(fi_list[0].width, fi_list[0].height, impxs_s, null) );
+					}
+					
+					if (paddingBottom > 0 || paddingRight > 0) {
+						ip.setRoi(0, 0, width, height);
+						slices.add(ip.crop());
+					} else
+						slices.add(ip);
+					
+					//IJ.log("[Load] Slice: "+inum);
+					
+					path = tdir + String.format("z%05d", ++inum) + ".tiff";
+					
+					tif = new File(path);
+				}
+            }catch(Exception ex){
+                System.out.println(ex.toString());
+            }
+        }
+        public ArrayList<ImageProcessor> getSlices() { return slices; }
     }
 }
