@@ -47,7 +47,7 @@ public class H5j_Reader extends ImagePlus implements PlugIn {
     public void run(String arg) {
     	String path = null;  
     	
-    	if (arg != null) {  
+    	if (arg != null && !arg.isEmpty()) {  
             if (arg.indexOf("http://") == 0 || new File(arg).exists())
             	path = arg;  
     	} else {
