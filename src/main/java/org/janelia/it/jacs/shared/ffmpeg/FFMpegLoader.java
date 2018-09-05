@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Howard Hughes Medical Institute.
+ * Copyright 2018 Howard Hughes Medical Institute.
  * All rights reserved.
  * Use is subject to Janelia Farm Research Campus Software Copyright 1.1
  * license terms ( http://license.janelia.org/license/jfrc_copyright_1_1.html ).
@@ -116,13 +116,13 @@ public class FFMpegLoader
 
         // Close the video codec
         if (_video_codec != null) {
-            avcodec_close(_video_codec);
+        	avcodec_free_context(_video_codec);
             _video_codec = null;
         }
 
         // Close the video file
         if (_format_context != null && !_format_context.isNull()) {
-            avformat_close_input(_format_context);
+            avformat_free_context(_format_context);
             _format_context = null;
         }
 
@@ -174,7 +174,7 @@ public class FFMpegLoader
             if (_image.getBytesPerPixel() == 1)
                 result = AV_PIX_FMT_GRAY8;
             else if (_image.getBytesPerPixel() == 2)
-                result = AV_PIX_FMT_GRAY16BE;
+                result = AV_PIX_FMT_GRAY16;
             else
                 result = AV_PIX_FMT_NONE;
             }
@@ -270,6 +270,8 @@ public class FFMpegLoader
         _frame_grabbed = false;
         _time_stamp = 0;
         frameNumber = 0;
+        
+        int thread = Runtime.getRuntime().availableProcessors();
 
         pkt2.size(0);
 
@@ -304,6 +306,8 @@ public class FFMpegLoader
                 _video_codec = avcodec_alloc_context3(decoder);
                 if (avcodec_parameters_to_context(_video_codec, _video_stream.codecpar()) < 0)
                 	throw new Exception("avcodec_parameters_to_context failed.");
+                _video_codec.thread_count(thread);
+                
                 // Open video codec
                 if ((ret = avcodec_open2(_video_codec, decoder, (PointerPointer) null)) < 0) {
                     throw new Exception("avcodec_open2() error " + ret + ": Could not open video codec.");
@@ -333,6 +337,14 @@ public class FFMpegLoader
         	_components_per_frame = 1; //gray16
         	_image.setBytesPerPixel(2);
         }
+        
+        img_convert_ctx = sws_getContext(
+                _video_codec.width(), _video_codec.height(), _video_codec.pix_fmt(),
+                _video_codec.width(), _video_codec.height(), getPixelFormat(), SWS_BICUBIC,
+                null, null, (DoublePointer) null);
+        if (img_convert_ctx == null) {
+            throw new Exception("sws_getContext() error: Cannot initialize the conversion context.");
+        }
     }
 
     public void stop() throws Exception {
@@ -341,6 +353,7 @@ public class FFMpegLoader
 
     private void allocateFrame(Frame f) throws Exception {
         // Allocate video frame and an AVFrame structure for the RGB image
+    	
         if ((picture = av_frame_alloc()) == null) {
             throw new Exception("avcodec_alloc_frame() error: Could not allocate raw picture frame.");
         }
@@ -355,20 +368,10 @@ public class FFMpegLoader
         _image.setWidth(width);
 
         int fmt = getPixelFormat();
-     /*   
-        if ( av_image_alloc(picture.data(), picture.linesize(), width, height, _video_codec.pix_fmt(), 1) < 0 ) {
-        	IJ.log("Error allocating raw frame buffer"); 
-        	return;
-        }
-      */  
-        if ( av_image_alloc(picture_rgb.data(), picture_rgb.linesize(), width, height, fmt, 1) < 0 ) {
-        	IJ.log("Error allocating RGB frame buffer"); 
-        	return;
-        }
-
+    
         // Assign to the frame so the memory can be deleted later
-        f.picture = picture;
-        f.picture_rgb = picture_rgb;
+        //f.picture = picture;
+        //f.picture_rgb = picture_rgb;
         f.imageBytes.add( new byte[width * height * _image.getBytesPerPixel()] );
     }
 
@@ -421,21 +424,21 @@ public class FFMpegLoader
         //    AVPicture p = new AVPicture(picture);
         //    avpicture_deinterlace(p, p, _video_codec.pix_fmt(), _video_codec.width(), _video_codec.height());
         //}
-
-        // Convert the image into BGR or GRAY format that OpenCV uses
-        img_convert_ctx = sws_getCachedContext(img_convert_ctx,
-                _video_codec.width(), _video_codec.height(), _video_codec.pix_fmt(),
-                getImageWidth(), getImageHeight(), getPixelFormat(), SWS_BILINEAR,
-                null, null, (DoublePointer) null);
-        if (img_convert_ctx == null) {
-            throw new Exception("sws_getCachedContext() error: Cannot initialize the conversion context.");
-        }
-
+    	
+    	av_frame_copy_props(picture_rgb, picture);
+        picture_rgb.width(getImageWidth());
+        picture_rgb.height(getImageHeight());
+        picture_rgb.format(getPixelFormat());
+        av_frame_get_buffer(picture_rgb, 0);
+        
         // Convert the image from its native format to RGB or GRAY
-        sws_scale(img_convert_ctx, new PointerPointer(picture), picture.linesize(), 0,
-                _video_codec.height(), new PointerPointer(picture_rgb), picture_rgb.linesize());
+        sws_scale(img_convert_ctx, picture.data(), picture.linesize(), 0,
+                _video_codec.height(), picture_rgb.data(), picture_rgb.linesize());
 
         extractBytes(frame, picture_rgb.data(0));
+        
+        av_frame_free(picture);
+        av_frame_free(picture_rgb);
     }
 
     public void grab() throws Exception {
@@ -465,9 +468,9 @@ public class FFMpegLoader
 
         if (_frame_grabbed) {
             _frame_grabbed = false;
-            processImage(frame);
             frame.keyFrame = picture.key_frame() != 0;
-            frame.image = picture_rgb;
+            //frame.image = picture_rgb;
+            processImage(frame);
             return frame;
         }
         
@@ -498,20 +501,20 @@ public class FFMpegLoader
              	    	_time_stamp = 1000000L * pts * time_base.num() / time_base.den();
              	    	// best guess, AVCodecContext.frame_number = number of decoded frames...
              	    	frameNumber = (int) (_time_stamp * getFrameRate() / 1000000L);
+             	    	frame.keyFrame = picture.key_frame() != 0;
+             	    	//frame.image = picture_rgb;
+             	    	//frame.opaque = picture;
              	    	processImage(frame);
              	    	done = true;
-             	    	frame.keyFrame = picture.key_frame() != 0;
-             	    	frame.image = picture_rgb;
-             	    	frame.opaque = picture;
-             	    } else if (ret == AVERROR_EAGAIN())
+             	    } else if (ret == AVERROR_EAGAIN()) {
+             	    	av_frame_free(picture);
+             	        av_frame_free(picture_rgb);
              	    	frame.release();
+             	    }
              	    else 
              	    	return null;
              	}
-             	if (pkt.size() > 0) {
-             		// Free the packet that was allocated by av_read_frame
-             		av_packet_unref(pkt);
-                }
+             	av_packet_unref(pkt);
             }
         } else {
         	//System.out.println("f:  "+_frame_count+"   flush");
@@ -524,11 +527,11 @@ public class FFMpegLoader
      	    	_time_stamp = 1000000L * pts * time_base.num() / time_base.den();
      	    	// best guess, AVCodecContext.frame_number = number of decoded frames...
      	    	frameNumber = (int) (_time_stamp * getFrameRate() / 1000000L);
+     	    	frame.keyFrame = picture.key_frame() != 0;
+     	    	//frame.image = picture_rgb;
+     	    	//frame.opaque = picture;
      	    	processImage(frame);
      	    	done = true;
-     	    	frame.keyFrame = picture.key_frame() != 0;
-     	    	frame.image = picture_rgb;
-     	    	frame.opaque = picture;
      	    } else 
      	    	return null;
         }
