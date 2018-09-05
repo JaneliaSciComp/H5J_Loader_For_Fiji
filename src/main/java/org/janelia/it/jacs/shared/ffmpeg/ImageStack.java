@@ -182,7 +182,7 @@ public class ImageStack
      * @param i - image index
      * @return the size of a line of data
      */
-    public int linesize(int i) { return _image.get(i).image.linesize(0); }
+    public int linesize(int i) { return _image.get(i).picture_rgb.linesize(0); }
 
     /**
      * Add a Frame to the end of the stack
