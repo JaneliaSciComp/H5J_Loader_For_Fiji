@@ -449,8 +449,6 @@ public class FFMpegLoader
     		picture_rgb.format(getPixelFormat());
     		picture_rgb.nb_samples(0);
     		av_frame_get_buffer(picture_rgb, 0);
-    		IJ.log("w: "+getImageWidth());
-    		IJ.log("line: "+picture_rgb.linesize().get(0));
     	}
         
         // Convert the image from its native format to RGB or GRAY
