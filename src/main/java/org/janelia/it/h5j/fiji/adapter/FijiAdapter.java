@@ -80,7 +80,7 @@ public class FijiAdapter {
 	public ImagePlus getMultiChannelImagePlus(File inputFile) throws Exception {
 		// Need here, to pull the values IN from the input file, per H5J
 		// read mechanism.
-		final H5JLoader loader = new H5JLoader(inputFile.getAbsolutePath());
+		H5JLoader loader = new H5JLoader(inputFile.getAbsolutePath());
 		FileInfo fileInfo = null;
 		ImagePlus rtnVal = null;
 
@@ -221,6 +221,9 @@ public class FijiAdapter {
 			rtnVal.setC(1);
 			rtnVal.setZ(1);
 		}
+        
+        loader.close();
+        
 		return rtnVal;
 	}
 

@@ -14,6 +14,7 @@ import org.bytedeco.javacpp.avcodec.AVCodecParameters;
 
 import ij.IJ;
 
+import static org.bytedeco.javacpp.avformat.AVFormatContext.AVFMT_FLAG_CUSTOM_IO;
 import static org.bytedeco.javacpp.avcodec.*;
 import static org.bytedeco.javacpp.avdevice.avdevice_register_all;
 import static org.bytedeco.javacpp.avformat.*;
@@ -33,10 +34,10 @@ class ReadInput extends Read_packet_Pointer_BytePointer_int {
     @Override
     public int call(Pointer opaque, BytePointer buffer, int buffer_size) {
     	//System.out.println("read call "+opaque+" "+buffer+" "+buffer_size);
-        int buf_size = buffer_size;
+        int buf_size = _buffer.length;
         if ( _read_bytes )
         {
-            buffer.put(_buffer, 0, buffer_size);
+            buffer.put(_buffer, 0, buf_size);
             _read_bytes = false;
         }
         else
@@ -65,7 +66,7 @@ public class FFMpegLoader
     private AVFormatContext _format_context;
     private AVStream _video_stream;
     private AVCodecContext _video_codec;
-    private AVFrame picture, picture_rgb;
+    private AVFrame picture = null, picture_rgb = null;
     private BytePointer _buffer_rgb;
     private AVPacket pkt, pkt2;
     private int[] got_frame;
@@ -75,12 +76,13 @@ public class FFMpegLoader
     private long _time_stamp;
     private int frameNumber;
     private boolean deinterlace = false;
-    private BytePointer _ibuffer;
     private int _components_per_frame;
     
     private long _frame_count = 0;
     private long _frame_num = 0;
     private boolean _flush = false;
+    
+    private BytePointer _buffer = null;
 
     public FFMpegLoader(String filename)
     {
@@ -91,14 +93,23 @@ public class FFMpegLoader
     public FFMpegLoader(byte[] ibytes)
     {
         this._filename = "";
-        _ibuffer = new BytePointer(ibytes);
         int BUFFER_SIZE=ibytes.length;
         // allocate buffer
-        BytePointer buffer = new BytePointer(av_malloc(BUFFER_SIZE));
+        _buffer = new BytePointer(av_malloc(BUFFER_SIZE));
         // create format context
         _format_context = avformat_alloc_context();
-        _format_context.pb(avio_alloc_context(buffer, BUFFER_SIZE, 0, _ibuffer, new ReadInput(ibytes), null, null));
-        _format_context.pb().seekable(0);
+        
+        Seek_Pointer_long_int seeker = new Seek_Pointer_long_int() {
+            @Override
+            public long call(Pointer pointer, long offset, int whence) {
+                return ibytes.length;
+            }
+        };
+        
+        _format_context.pb(avio_alloc_context(_buffer, BUFFER_SIZE, 0, null, new ReadInput(ibytes), null, seeker));
+        AVInputFormat format = av_find_input_format(_buffer);
+        _format_context.iformat(format);
+        _format_context.flags(_format_context.flags() | AVFMT_FLAG_CUSTOM_IO);
     }
 
     public ImageStack getImage()
@@ -122,7 +133,9 @@ public class FFMpegLoader
 
         // Close the video file
         if (_format_context != null && !_format_context.isNull()) {
-            avformat_free_context(_format_context);
+        	av_free(_format_context.pb().buffer());
+        	avio_context_free(_format_context.pb());
+        	avformat_free_context(_format_context);
             _format_context = null;
         }
 
@@ -130,6 +143,8 @@ public class FFMpegLoader
             sws_freeContext(img_convert_ctx);
             img_convert_ctx = null;
         }
+        
+        av_frame_free(picture_rgb);
 
         got_frame = null;
         _frame_grabbed = false;
@@ -174,7 +189,7 @@ public class FFMpegLoader
             if (_image.getBytesPerPixel() == 1)
                 result = AV_PIX_FMT_GRAY8;
             else if (_image.getBytesPerPixel() == 2)
-                result = AV_PIX_FMT_GRAY16;
+                result = AV_PIX_FMT_GRAY16BE; //Java uses the network byte order (big endian)
             else
                 result = AV_PIX_FMT_NONE;
             }
@@ -357,9 +372,6 @@ public class FFMpegLoader
         if ((picture = av_frame_alloc()) == null) {
             throw new Exception("avcodec_alloc_frame() error: Could not allocate raw picture frame.");
         }
-        if ((picture_rgb = av_frame_alloc()) == null) {
-            throw new Exception("avcodec_alloc_frame() error: Could not allocate RGB picture frame.");
-        }
 
         int width = getImageWidth() > 0 ? getImageWidth() : _video_codec.width();
         int height = getImageHeight() > 0 ? getImageHeight() : _video_codec.height();
@@ -378,14 +390,17 @@ public class FFMpegLoader
     private void extractBytes(Frame frameOutput, BytePointer imageBytesInput) {
         int width = _video_codec.width();
         int height = _video_codec.height();
-        int padding = _image.getPaddingRight();
-        if (padding == -1) {
+        int linesize = _image.getBytesPerPixel() == 1 ? 
+        					picture_rgb.linesize().get(0)/3 :
+        					picture_rgb.linesize().get(0)/2;
+        int padding = linesize -_video_codec.width();
+        if (padding < 0) {
             padding = 0;
         }
 
         if (_image.getBytesPerPixel() == 1) {
         	byte[] outputBytes = frameOutput.imageBytes.get(0);
-        	byte[] inputBytes = new byte[width * height * 3];
+        	byte[] inputBytes = new byte[linesize * height * 3];
         	imageBytesInput.get(inputBytes);
 
         	int inputOffset = 0;
@@ -400,7 +415,7 @@ public class FFMpegLoader
         	}
         } else {
         	byte[] outputBytes = frameOutput.imageBytes.get(0);
-        	byte[] inputBytes = new byte[width * height * _image.getBytesPerPixel()];
+        	byte[] inputBytes = new byte[linesize * height * _image.getBytesPerPixel()];
         	imageBytesInput.get(inputBytes);
 
         	int inputOffset = 0;
@@ -424,12 +439,19 @@ public class FFMpegLoader
         //    AVPicture p = new AVPicture(picture);
         //    avpicture_deinterlace(p, p, _video_codec.pix_fmt(), _video_codec.width(), _video_codec.height());
         //}
-    	
-    	av_frame_copy_props(picture_rgb, picture);
-        picture_rgb.width(getImageWidth());
-        picture_rgb.height(getImageHeight());
-        picture_rgb.format(getPixelFormat());
-        av_frame_get_buffer(picture_rgb, 0);
+    	if (picture_rgb == null) {
+    		if ((picture_rgb = av_frame_alloc()) == null) {
+                throw new Exception("avcodec_alloc_frame() error: Could not allocate rbg picture frame.");
+            }
+    		av_frame_copy_props(picture_rgb, picture);
+    		picture_rgb.width(getImageWidth());
+    		picture_rgb.height(getImageHeight());
+    		picture_rgb.format(getPixelFormat());
+    		picture_rgb.nb_samples(0);
+    		av_frame_get_buffer(picture_rgb, 0);
+    		IJ.log("w: "+getImageWidth());
+    		IJ.log("line: "+picture_rgb.linesize().get(0));
+    	}
         
         // Convert the image from its native format to RGB or GRAY
         sws_scale(img_convert_ctx, picture.data(), picture.linesize(), 0,
@@ -438,7 +460,7 @@ public class FFMpegLoader
         extractBytes(frame, picture_rgb.data(0));
         
         av_frame_free(picture);
-        av_frame_free(picture_rgb);
+        //av_frame_free(picture_rgb);
     }
 
     public void grab() throws Exception {
@@ -508,7 +530,7 @@ public class FFMpegLoader
              	    	done = true;
              	    } else if (ret == AVERROR_EAGAIN()) {
              	    	av_frame_free(picture);
-             	        av_frame_free(picture_rgb);
+             	        //av_frame_free(picture_rgb);
              	    	frame.release();
              	    }
              	    else 
