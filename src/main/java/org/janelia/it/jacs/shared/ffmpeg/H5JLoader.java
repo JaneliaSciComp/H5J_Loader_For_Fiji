@@ -84,9 +84,7 @@ public class H5JLoader
         if (image == null) {
             image = new ImageStack();
         }
-        IHDF5ReaderConfigurator conf = HDF5Factory.configureForReading(_filename);
-        conf.performNumericConversions();
-        IHDF5Reader ihdf5reader = conf.reader();
+        IHDF5Reader ihdf5reader = _reader;
         if (ihdf5reader.object().hasAttribute(CHANNELS_QUERY_PATH, PAD_BOTTOM_ATTRIB)) {
             IHDF5LongReader ihdf5LongReader = ihdf5reader.int64();
             final int paddingBottom = (int) ihdf5LongReader.getAttr(CHANNELS_QUERY_PATH, PAD_BOTTOM_ATTRIB);

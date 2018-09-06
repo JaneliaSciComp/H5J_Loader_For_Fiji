@@ -19,7 +19,7 @@ public class Frame {
     public boolean keyFrame;
     //public AVFrame image;
     //public Object opaque;
-    public AVFrame picture, picture_rgb;
+    public AVFrame picture = null, picture_rgb = null;
     public ArrayList<byte[]> imageBytes = new ArrayList<byte[]>();
 
     public void release() throws Exception {
