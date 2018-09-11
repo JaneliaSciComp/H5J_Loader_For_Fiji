@@ -228,6 +228,9 @@ public class ImageStack
         _height = 0;
         _width = 0;
     }
+    
+    public void setInfo(String info) { this._info = info; }
+    public String getInfo() { return this._info; }
 
     private int _height;
     private int _width;
@@ -241,6 +244,7 @@ public class ImageStack
     private double _spcy = 1.0;
     private double _spcz = 1.0;
     private String _unit = "";
+    private String _info = "";
 
     private ArrayList<Frame> _image = new ArrayList<Frame>();
 

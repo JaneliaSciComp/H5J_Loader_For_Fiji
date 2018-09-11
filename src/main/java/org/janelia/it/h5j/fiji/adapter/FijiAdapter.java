@@ -93,11 +93,11 @@ public class FijiAdapter {
 		String unit = "";
 		for (String channelName : loader.channelNames()) {
 			//IJ.log(channelName);
-            if (!Interpreter.isBatchMode()) {
-                IJ.showProgress(channelNum, channelCount);
-            }
+            //if (!Interpreter.isBatchMode()) {
+            //    IJ.showProgress(channelNum, channelCount);
+            //}
             max[channelNum - 1] = -Double.MAX_VALUE;
-			final org.janelia.it.jacs.shared.ffmpeg.ImageStack h5jImageStack = loader.extract(channelName);
+			final org.janelia.it.jacs.shared.ffmpeg.ImageStack h5jImageStack = loader.extract(channelName, channelNum-1);
 			// Scoop whole-product data from the first channel.
 			if (rtnVal == null || fileInfo == null) {
 				fileInfo = createFileInfo(inputFile, h5jImageStack);
@@ -121,8 +121,8 @@ public class FijiAdapter {
 				
 				spc = h5jImageStack.getSpacings();
 				unit = h5jImageStack.getUnit();
-				if (unit.isEmpty()) unit = "pixel";
-				
+				if (unit.isEmpty()) unit = "pixels";
+
 				rtnVal = NewImage.createImage(
 						inputFile.getName(),              //Name
 						fileInfo.width - h5jImageStack.getPaddingRight(),
@@ -133,6 +133,11 @@ public class FijiAdapter {
 						8 * bytesPerPixel,                //BitDepth
                         NewImage.FILL_BLACK               //Options
                 );
+				
+				if (!Interpreter.isBatchMode()) {
+					IJ.showStatus("Loading H5J...");
+					IJ.showProgress(channelNum, channelCount);
+				}
 
 				rtnVal = new CompositeImage(rtnVal, CompositeImage.COMPOSITE);
                 rtnVal.setDimensions(channelCount, fileInfo.nImages, 1);
@@ -140,8 +145,9 @@ public class FijiAdapter {
 					IJ.log("Setting dimensions: channelCount=" + channelCount + ", n-Images=" + fileInfo.nImages);
 				}
 				rtnVal.setOpenAsHyperStack(true);
+				
             }
-
+			
             final Map<IPKey, ImageProcessor> imageProcessors =
                     Collections.synchronizedMap(new HashMap<IPKey, ImageProcessor>());
 			// Iterate over all frames in the input.
@@ -221,6 +227,10 @@ public class FijiAdapter {
 			rtnVal.setC(1);
 			rtnVal.setZ(1);
 		}
+        
+        String info = loader.getAllAttributeString("/");
+        info += loader.getAllAttributeString("/Channels");
+        rtnVal.setProperty("Info", info);
         
         loader.close();
         
