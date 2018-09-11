@@ -13,6 +13,7 @@ import org.bytedeco.javacpp.PointerPointer;
 import org.bytedeco.javacpp.avcodec.AVCodecParameters;
 
 import ij.IJ;
+import ij.macro.Interpreter;
 
 import static org.bytedeco.javacpp.avformat.AVFormatContext.AVFMT_FLAG_CUSTOM_IO;
 import static org.bytedeco.javacpp.avcodec.*;
@@ -83,6 +84,9 @@ public class FFMpegLoader
     private boolean _flush = false;
     
     private BytePointer _buffer = null;
+    
+    private int channel_num = 1;
+    private int channel_count = 0;
 
     public FFMpegLoader(String filename)
     {
@@ -179,6 +183,13 @@ public class FFMpegLoader
 
     public void setDeinterlace(boolean deinterlace) {
         this.deinterlace = deinterlace;
+    }
+    
+    public void setChannelNum(int chnum) {
+        this.channel_num = chnum;
+    }
+    public void setChannelCount(int chcount) {
+        this.channel_count = chcount;
     }
 
     public int getPixelFormat()
@@ -360,6 +371,11 @@ public class FFMpegLoader
         if (img_convert_ctx == null) {
             throw new Exception("sws_getContext() error: Cannot initialize the conversion context.");
         }
+        
+        if (!Interpreter.isBatchMode()) {
+        	IJ.showStatus("Loading H5J...");
+        	IJ.showProgress( (double)channel_count / channel_num );
+        }
     }
 
     public void stop() throws Exception {
@@ -476,6 +492,11 @@ public class FFMpegLoader
                 _image.add(f);
             } else {
                 done = true;
+            }
+            
+            if (!Interpreter.isBatchMode()) {
+            	IJ.showStatus("Loading H5J...");
+            	IJ.showProgress( (double)(channel_count*_frame_num + _frame_count) / (channel_num*_frame_num) );
             }
         }
     }

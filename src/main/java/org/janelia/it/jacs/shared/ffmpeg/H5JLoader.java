@@ -9,8 +9,10 @@ package org.janelia.it.jacs.shared.ffmpeg;
 
 import ch.systemsx.cisd.hdf5.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.stream.Collectors;
 
 public class H5JLoader
 {
@@ -47,18 +49,20 @@ public class H5JLoader
         }
 
         List<String> channels = channelNames();
+        int ch_count = 0;
         for (ListIterator<String> iter = channels.listIterator(); iter.hasNext(); )
         {
             String channel_id = iter.next();
             try
             {
-                ImageStack frames = extract(channel_id);
+                ImageStack frames = extract(channel_id, ch_count);
                 _image.merge( frames );
                 extractAttributes(_image);
             } catch (Exception e)
             {
                 e.printStackTrace();
             }
+            ch_count++;
         }
 
         return _image;
@@ -69,6 +73,24 @@ public class H5JLoader
         byte[] data = channel.readArray(CHANNELS_QUERY_PATH + "/" + channelID);
 
         FFMpegLoader movie = new FFMpegLoader(data);
+        movie.start();
+        movie.grab();
+        ImageStack stack = movie.getImage();
+
+        extractAttributes(stack);
+
+        movie.close();
+
+        return stack;
+    }
+    
+    public ImageStack extract(String channelID, int chcount) throws Exception {
+        IHDF5OpaqueReader channel = _reader.opaque();
+        byte[] data = channel.readArray(CHANNELS_QUERY_PATH + "/" + channelID);
+
+        FFMpegLoader movie = new FFMpegLoader(data);
+        movie.setChannelNum(numberOfChannels());
+        movie.setChannelCount(chcount);
         movie.start();
         movie.grab();
         ImageStack stack = movie.getImage();
@@ -114,6 +136,151 @@ public class H5JLoader
             image.setUnit(unit);
         }
     }
+    
+    public String getAllAttributeString(String path) {
+    	String attrs = "";
+        List<String> names = _reader.object().getAllAttributeNames(path);
+        for (String n : names) {
+        	attrs = attrs + getAttributeString(_reader, path, n) + System.getProperty("line.separator");
+        }
+        return attrs;
+    }
+    
+    public String getAttributeString(
+			final IHDF5Reader reader,
+			final String object,
+			final String attribute )
+	{
+    	String rtnVal = "";
+    	
+		if ( !reader.exists( object ) )
+			return rtnVal;
+
+		if ( !reader.object().hasAttribute( object, attribute ) )
+			return rtnVal;
+
+		final HDF5DataTypeInformation attributeInfo = reader.object().getAttributeInformation( object, attribute );
+		final Class< ? > type = attributeInfo.tryGetJavaType();
+		if ( type.isAssignableFrom( long[].class ) )
+			if ( attributeInfo.isSigned() ) {
+				rtnVal = Arrays.stream(reader.int64().getArrayAttr( object, attribute ))
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+			else {
+				rtnVal = Arrays.stream(reader.uint64().getArrayAttr( object, attribute ))
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+		if ( type.isAssignableFrom( int[].class ) )
+			if ( attributeInfo.isSigned() ) {
+				rtnVal = Arrays.stream(reader.int32().getArrayAttr( object, attribute ))
+		        .mapToObj(String::valueOf)
+		        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+			else {
+				rtnVal = Arrays.stream(reader.uint32().getArrayAttr( object, attribute ))
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+		if ( type.isAssignableFrom( short[].class ) )
+			if ( attributeInfo.isSigned() ) {
+				short[] s = reader.int16().getArrayAttr( object, attribute );
+				int[] ia = new int[s.length];
+				for (int i = 0; i < s.length; i++) ia[i] = s[i];
+				rtnVal = Arrays.stream(ia)
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+			else {
+				short[] s = reader.int16().getArrayAttr( object, attribute );
+				int[] ia = new int[s.length];
+				for (int i = 0; i < s.length; i++) ia[i] = s[i];
+				rtnVal = Arrays.stream(ia)
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+		if ( type.isAssignableFrom( byte[].class ) )
+		{
+			if ( attributeInfo.isSigned() ) {
+				byte[] s = reader.int8().getArrayAttr( object, attribute );
+				int[] ia = new int[s.length];
+				for (int i = 0; i < s.length; i++) ia[i] = s[i];
+				rtnVal = Arrays.stream(ia)
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+			else {
+				byte[] s = reader.uint8().getArrayAttr( object, attribute );
+				int[] ia = new int[s.length];
+				for (int i = 0; i < s.length; i++) ia[i] = s[i];
+				rtnVal = Arrays.stream(ia)
+				        .mapToObj(String::valueOf)
+				        .collect(Collectors.joining(", "));
+				return attribute + ": " + "[ " + rtnVal + " ]";
+			}
+		}
+		else if ( type.isAssignableFrom( double[].class ) ) {
+			rtnVal = Arrays.stream(reader.float64().getArrayAttr( object, attribute ))
+			        .mapToObj(String::valueOf)
+			        .collect(Collectors.joining(", "));
+			return attribute + ": " + "[ " + rtnVal + " ]";
+		}
+		else if ( type.isAssignableFrom( float[].class ) ) {
+			float[] s = reader.float32().getArrayAttr( object, attribute );
+			double[] ia = new double[s.length];
+			for (int i = 0; i < s.length; i++) ia[i] = s[i];
+			rtnVal = Arrays.stream(ia)
+			        .mapToObj(String::valueOf)
+			        .collect(Collectors.joining(", "));
+			return attribute + ": " + "[ " + rtnVal + " ]";
+		}
+		else if ( type.isAssignableFrom( String[].class ) )
+			return attribute + ": "+ "[ " + String.join(", ", reader.string().getArrayAttr( object, attribute )) + " ]";
+		if ( type.isAssignableFrom( long.class ) )
+		{
+			if ( attributeInfo.isSigned() )
+				return attribute + ": " + String.valueOf(reader.int64().getAttr( object, attribute ));
+			else
+				return attribute + ": " + String.valueOf(reader.uint64().getAttr( object, attribute ));
+		}
+		else if ( type.isAssignableFrom( int.class ) )
+		{
+			if ( attributeInfo.isSigned() )
+				return attribute + ": " + String.valueOf(reader.int32().getAttr( object, attribute ));
+			else
+				return attribute + ": " + String.valueOf(reader.uint32().getAttr( object, attribute ));
+		}
+		else if ( type.isAssignableFrom( short.class ) )
+		{
+			if ( attributeInfo.isSigned() )
+				return attribute + ": " + String.valueOf(reader.int16().getAttr( object, attribute ));
+			else
+				return attribute + ": " + String.valueOf(reader.uint16().getAttr( object, attribute ));
+		}
+		else if ( type.isAssignableFrom( byte.class ) )
+		{
+			if ( attributeInfo.isSigned() )
+				return attribute + ": " + String.valueOf(reader.int8().getAttr( object, attribute ));
+			else
+				return attribute + ": " + String.valueOf(reader.uint8().getAttr( object, attribute ));
+		}
+		else if ( type.isAssignableFrom( double.class ) )
+			return attribute + ": " + String.valueOf(reader.float64().getAttr( object, attribute ));
+		else if ( type.isAssignableFrom( float.class ) )
+			return attribute + ": " + String.valueOf(reader.float32().getAttr( object, attribute ));
+		else if ( type.isAssignableFrom( String.class ) )
+			return attribute + ": " + reader.string().getAttr( object, attribute );
+
+		return rtnVal;
+	}
 
 
     public void saveFrame(int iFrame, DataAcceptor acceptor)
