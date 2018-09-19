@@ -9,7 +9,7 @@ H5J Reader Plugin was created at HHMI Janelia Research Campus.
 Installation
 ========
  - Download the installer plugin (`H5J_Installer.jar`) from https://github.com/JaneliaSciComp/H5J_Loader_For_Fiji/releases/download/1.1.0/H5J_Installer.jar.  
- - Drag and drop `H5J_Installer.jar` to Fiji.  
+ - Drag and drop `H5J_Installer.jar` to Fiji and save it to the Fiji plugin directory.  
  - Restart Fiji.  
  - Run the installer plugin (Plugins->H5J Installer). 
  - Restart Fiji. 
