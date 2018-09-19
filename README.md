@@ -6,25 +6,12 @@ within an HDF5 container.
 
 H5J Reader Plugin was created at HHMI Janelia Research Campus.
 
-
-Precompiled Binaries
+Installation
 ========
-https://github.com/JaneliaSciComp/H5J_Loader_For_Fiji/releases
-
-Installing on Windows
-========
- - Go to `\Fiji.app\jars`.  
- - Replace `ffmpeg-x.x.x-x.x.jar` and `javacpp-x.x.jar` with `ffmpeg-4.0.1-1.4.2.jar` and `javacpp-1.4.2.jar`.  
- - Go to `\Fiji.app\jars\win64`.  
- - Replace `ffmpeg-x.x.x-x.x-windows-x86_64` with `ffmpeg-4.0.1-1.4.2-windows-x86_64.jar`.  
- - Copy `H5J_Loader_Plugin-1.0.7-SNAPSHOT.jar` into `\Fiji.app\plugins`  
-
-Installing on Mac OSX
-========
- - Go to `\Fiji.app\jars`.  
- - Replace `ffmpeg-x.x.x-x.x.jar` and `javacpp-x.x.jar` with `ffmpeg-4.0.1-1.4.2.jar` and `javacpp-1.4.1.jar`.  
- - Go to `\Fiji.app\jars\macosx`.  
- - Replace `ffmpeg-x.x.x-x.x-macosx-x86_64` with `ffmpeg-4.0.1-1.4.2-macosx-x86_64.jar`.  
- - Copy `H5J_Loader_Plugin-1.0.7-SNAPSHOT.jar` into `\Fiji.app\plugins`  
+ - Download the installer plugin (`H5J_Installer.jar`) from https://github.com/JaneliaSciComp/H5J_Loader_For_Fiji/releases/download/1.1.0/H5J_Installer.jar.  
+ - Drag and drop `H5J_Installer.jar` to Fiji.  
+ - Restart Fiji.  
+ - Run the installer plugin (Plugins->H5J Installer). 
+ - Restart Fiji. 
 
 ![Janelia Logo](hhmi_janelia_transparentbkgrnd.png)
