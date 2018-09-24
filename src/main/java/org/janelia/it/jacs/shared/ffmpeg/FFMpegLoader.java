@@ -111,8 +111,6 @@ public class FFMpegLoader
         };
         
         _format_context.pb(avio_alloc_context(_buffer, BUFFER_SIZE, 0, null, new ReadInput(ibytes), null, seeker));
-        AVInputFormat format = av_find_input_format(_buffer);
-        _format_context.iformat(format);
         _format_context.flags(_format_context.flags() | AVFMT_FLAG_CUSTOM_IO);
     }
 
